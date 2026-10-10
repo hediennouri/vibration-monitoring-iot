@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+
+  nodered:
+    image: nodered/node-red
+    container_name: nodered
+    ports:
+      - "1880:1880"
+    volumes:
+      - nodered_data:/data
+    restart: unless-stopped
+    networks:
+      - vibration_net
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME:-admin}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD:-admin1234}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-my_project}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-vibration_data}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-my-super-secret-token}
+    restart: unless-stopped
+    networks:
+      - vibration_net
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana_provisioning:/etc/grafana/provisioning
+    restart: unless-stopped
+    networks:
+      - vibration_net
+
+  basyx-aas:
+    image: eclipsebasyx/aas-environment:2.0.0-milestone-03
+    container_name: basyx_aas
+    ports:
+      - "4001:8081"
+    environment:
+      - SERVER_PORT=8081
+      - BASYX_CORS_ALLOWED-ORIGINS=*
+      - BASYX_CORS_ALLOWED-METHODS=GET,POST,PUT,DELETE,OPTIONS
+    restart: unless-stopped
+    networks:
+      - vibration_net
+
+  basyx-ui:
+    image: eclipsebasyx/aas-gui:latest
+    container_name: basyx_ui
+    ports:
+      - "3001:3000"
+    environment:
+      - VITE_AAS_REPO_PATH=http://localhost:4001/shells
+      - VITE_SUBMODEL_REPO_PATH=http://localhost:4001/submodels
+    restart: unless-stopped
+    networks:
+      - vibration_net
+
+volumes:
+  nodered_data:
+  influxdb_data:
+  grafana_data:
+
+networks:
+  vibration_net:

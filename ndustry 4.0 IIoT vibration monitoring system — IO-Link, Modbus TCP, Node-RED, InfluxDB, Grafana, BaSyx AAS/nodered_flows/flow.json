@@ -1,0 +1,69 @@
+[
+  {
+    "id": "inject_timer",
+    "type": "inject",
+    "name": "Every 1s",
+    "repeat": "1",
+    "once": true,
+    "onceDelay": "2",
+    "payload": "{\"fc\":4,\"unitid\":1,\"address\":0,\"quantity\":4}",
+    "payloadType": "json",
+    "wires": [["modbus_flex_getter"]]
+  },
+  {
+    "id": "modbus_flex_getter",
+    "type": "modbusFlexGetter",
+    "name": "Read TBEN-S2-4IOL",
+    "server": "modbus_client",
+    "wires": [["function_convert"], []]
+  },
+  {
+    "id": "function_convert",
+    "type": "function",
+    "name": "Convert to InfluxDB format",
+    "func": "var r = msg.payload;\nif (!Array.isArray(r) || r.length < 4) { node.warn('Invalid payload'); return null; }\nvar temperature = parseFloat((r[2] * 0.1).toFixed(1));\nvar vibration = parseFloat((r[3] * 0.01).toFixed(2));\nvar severity = vibration < 1.0 ? 0 : vibration < 2.3 ? 1 : vibration < 4.5 ? 2 : 3;\nnode.status({fill: severity < 2 ? 'green' : severity < 3 ? 'yellow' : 'red', shape: 'dot', text: vibration + ' g | ' + temperature + ' C'});\nmsg.payload = [[{amplitude: vibration, temperature: temperature, severity: severity},{sensor: 'CMVT-QR20', motor: 'Schmidt-LGEA63'}]];\nreturn msg;",
+    "outputs": 1,
+    "wires": [["influxdb_out", "debug_node"]]
+  },
+  {
+    "id": "influxdb_out",
+    "type": "influxdb out",
+    "name": "Write to InfluxDB",
+    "influxdb": "influxdb_config",
+    "measurement": "vibration",
+    "wires": []
+  },
+  {
+    "id": "debug_node",
+    "type": "debug",
+    "name": "Debug",
+    "active": true,
+    "tosidebar": true,
+    "wires": []
+  },
+  {
+    "id": "modbus_client",
+    "type": "modbus-client",
+    "name": "TBEN-S2-4IOL",
+    "clienttype": "tcp",
+    "tcpHost": "10.6.8.21",
+    "tcpPort": "502",
+    "tcpType": "DEFAULT",
+    "unitId": "1",
+    "timeout": "5000",
+    "reconnectTimeout": "5000",
+    "reconnectOnTimeout": true
+  },
+  {
+    "id": "influxdb_config",
+    "type": "influxdb",
+    "hostname": "influxdb",
+    "port": "8086",
+    "protocol": "http",
+    "influxdbVersion": "2.0",
+    "url": "http://influxdb:8086",
+    "token": "my-super-secret-token",
+    "organization": "my_project",
+    "defaultBucket": "vibration_data"
+  }
+]
